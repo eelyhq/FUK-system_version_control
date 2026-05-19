@@ -1,6 +1,6 @@
 #ifndef COMMIT_H
 #define COMMIT_H
 
-void commit_fuk();
+void commit_fuk(char*);
 
 #endif

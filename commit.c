@@ -86,7 +86,7 @@ void save_tree(file_tree* node) // returns hash
     return;
 }
 
-void commit_fuk()
+void commit_fuk(char* message)
 {
     file_tree root;
     init_file_tree(&root);
@@ -160,25 +160,20 @@ void commit_fuk()
     fscanf(head, "branch: %s", branch);
     fclose(head);
 
-    FILE* parent_commit = fopen(branch, "r");
+    FILE* parent_commit = fopen(branch, "rw");
     char p_c[41];
     fscanf(parent_commit, "%s", p_c);
+    fclose(parent_commit);
 
     char* buffer = malloc(sizeof(char) * 1000);
-    if (p_c == NULL)
-    {
-        sprintf(buffer, "tree %s\nparent", root.hash);
-    }
-    else
-    {
-        sprintf(buffer, "tree %s\nparent %s\n", root.hash, p_c);
-    }
+
+    sprintf(buffer, "tree %s\nparent %s\n\nmessage: %s", root.hash, p_c, message);
+
 
     FILE* tmp = fopen("./.fuk/objects/tmp", "w");
 
     fprintf(tmp,"%s", buffer);
     free(buffer);
-
     fclose(tmp);
 
     unsigned char hash[EVP_MAX_MD_SIZE];
@@ -194,14 +189,23 @@ void commit_fuk()
 
 
     char dir_name[18];
-    sprintf(dir_name, "./.fuk/objects/%.2s", hash_in_hex);
+    sprintf(dir_name, "./.fuk/objects/%.2s", hash_in_hex2);
     mkdir(dir_name, 0777);
 
     char new_name[50] = "./.fuk/objects/";
     int offset = 15;
-    offset += sprintf(new_name + offset, "%.2s/", hash_in_hex);
-    sprintf(new_name + offset,"%s", hash_in_hex + 2);
+    offset += sprintf(new_name + offset, "%.2s/", hash_in_hex2);
+    sprintf(new_name + offset,"%s", hash_in_hex2 + 2);
 
     FILE* f_dest = fopen(new_name, "wb");
     compress_file("./.fuk/objects/tmp", f_dest, 2);
+    fclose(f_dest);
+    remove("./.fuk/objects/tmp");
+
+    FILE* parent_commit2 = fopen(branch, "w");
+    fprintf(parent_commit, "%s", hash_in_hex2);
+
+    fclose(parent_commit2);
+
+    return;
 }
