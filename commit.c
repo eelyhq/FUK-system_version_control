@@ -23,7 +23,7 @@ void init_file_tree(file_tree* f_t)
     f_t -> child_count = 0;
 }
 
-void save_tree(file_tree* node) // returns hash
+void save_tree(file_tree* node, char* root_path) // returns hash
 {
     // base case, node - file
     if (node -> is_dir == 0)
@@ -33,7 +33,7 @@ void save_tree(file_tree* node) // returns hash
 
     for (int i = 0; i < node -> child_count; i++)
     {
-        save_tree(node -> children[i]);
+        save_tree(node -> children[i], root_path);
     }
 
     // build tree in files
@@ -51,7 +51,9 @@ void save_tree(file_tree* node) // returns hash
         }
     }
 
-    FILE* tmp = fopen("./.fuk/objects/tmp", "w");
+    char path_tmp[PATH_MAX];
+    sprintf(path_tmp, "%s/.fuk/objects/tmp", root_path);
+    FILE* tmp = fopen(path_tmp, "w");
 
     fprintf(tmp,"%s", buffer);
     free(buffer);
@@ -60,7 +62,7 @@ void save_tree(file_tree* node) // returns hash
 
     unsigned char hash[EVP_MAX_MD_SIZE];
 
-    get_hash("./.fuk/objects/tmp", hash, 1);
+    get_hash(path_tmp, hash, 1);
 
     char hash_in_hex[41];
 
@@ -71,42 +73,57 @@ void save_tree(file_tree* node) // returns hash
 
     strcpy(node -> hash, hash_in_hex);
 
-    char dir_name[18];
-    sprintf(dir_name, "./.fuk/objects/%.2s", hash_in_hex);
+    char dir_name[PATH_MAX];
+    sprintf(dir_name, "%s/.fuk/objects/%.2s",root_path, hash_in_hex);
     mkdir(dir_name, 0777);
 
-    char new_name[50] = "./.fuk/objects/";
-    offset = 15;
-    offset += sprintf(new_name + offset, "%.2s/", hash_in_hex);
-    sprintf(new_name + offset,"%s", hash_in_hex + 2);
+    char new_name[PATH_MAX];
+    sprintf(new_name, "%s/%s", dir_name, hash_in_hex + 2);
 
     FILE* f_dest = fopen(new_name, "wb");
-    compress_file("./.fuk/objects/tmp", f_dest, 1);
+    compress_file(path_tmp, f_dest, 1);
 
     return;
 }
 
 void commit_fuk(char* message)
 {
+    char cwd[PATH_MAX];
+    getcwd(cwd, sizeof(cwd)); // get current directory, to go up and search .fuk in higher dirs
+
+    char root_path[PATH_MAX];
+    char* re = check_repo_existing(cwd, root_path);
+
+    if (re == NULL) // F_OK checks for existence
+    {
+        printf("There is no repo!");
+        return;
+    }
+
     file_tree root;
     init_file_tree(&root);
 
     char file_name[NAME_MAX];
     char hash_in_hex[41];
 
-    FILE* index = fopen("./.fuk/index", "r");
+    char path_index[PATH_MAX];
+    sprintf(path_index, "%s/.fuk/index", root_path);
+    FILE* index = fopen(path_index, "r");
 
     int f = 1;
+    int root_path_len = (int)strlen(root_path);
     // build a tree
     while (fscanf(index, "%s : %s", file_name, hash_in_hex) != -1)
     {
+        char* relative_path = file_name + root_path_len + 1;
         f = 0;
+
         file_tree* curr_dir = &root ;
 
-        int slash_cnt = cnt_slashes_in_path(file_name);
+        int slash_cnt = cnt_slashes_in_path(relative_path);
 
         char* token;
-        token = strtok(file_name, "/");
+        token = strtok(relative_path, "/");
 
         while (slash_cnt > 0)
         {
@@ -153,9 +170,12 @@ void commit_fuk(char* message)
         return;
     }
 
-    save_tree(&root);
+    save_tree(&root, root_path);
 
-    FILE* head = fopen("./.fuk/HEAD", "r");
+    char head_path[PATH_MAX];
+    sprintf(head_path, "%s/.fuk/HEAD", root_path);
+
+    FILE* head = fopen(head_path, "r");
     char branch[PATH_MAX];
     fscanf(head, "branch: %s", branch);
     fclose(head);
@@ -165,12 +185,42 @@ void commit_fuk(char* message)
     fscanf(parent_commit, "%s", p_c);
     fclose(parent_commit);
 
+    // the p_c variable contains hash of previous commit, and we have to compare current tree with
+    // previous and if they are equals, we have to decline commit and message, that there is nothing to do
+
+    if (strcmp(p_c, "NULL"))
+    {
+        char path_to_commit[PATH_MAX];
+        sprintf(path_to_commit, "%s/.fuk/objects/%.2s/%.38s", root_path, p_c, p_c+2);
+
+        char path_to_decompressed_previous_commit[PATH_MAX];
+        sprintf(path_to_decompressed_previous_commit, "%s/.fuk/objects/decompressed_commit", root_path);
+        FILE* decompressed_previous_commit = fopen(path_to_decompressed_previous_commit, "wb");
+        decompress_file(path_to_commit, decompressed_previous_commit);
+        fclose(decompressed_previous_commit);
+        decompressed_previous_commit = fopen(path_to_decompressed_previous_commit, "r");
+
+        char previous_tree_hash[41];
+
+        char temp[1001];
+        fscanf(decompressed_previous_commit, "commit: %s\ntree %s\n", temp, previous_tree_hash);
+        fclose(decompressed_previous_commit);
+
+        if (!strcmp(previous_tree_hash, root.hash))
+        {
+            printf("Nothing to commit, working tree clean");
+            return;
+        }
+    }
+
     char* buffer = malloc(sizeof(char) * 1000);
 
     sprintf(buffer, "tree %s\nparent %s\n\nmessage: %s", root.hash, p_c, message);
 
+    char path_tmp[PATH_MAX];
+    sprintf(path_tmp, "%s/.fuk/objects/tmp", root_path);
 
-    FILE* tmp = fopen("./.fuk/objects/tmp", "w");
+    FILE* tmp = fopen(path_tmp, "w");
 
     fprintf(tmp,"%s", buffer);
     free(buffer);
@@ -178,7 +228,7 @@ void commit_fuk(char* message)
 
     unsigned char hash[EVP_MAX_MD_SIZE];
 
-    get_hash("./.fuk/objects/tmp", hash, 1);
+    get_hash(path_tmp, hash, 1);
 
     char hash_in_hex2[41];
 
@@ -188,19 +238,19 @@ void commit_fuk(char* message)
     }
 
 
-    char dir_name[18];
-    sprintf(dir_name, "./.fuk/objects/%.2s", hash_in_hex2);
+    char dir_name[PATH_MAX];
+    sprintf(dir_name, "%s/.fuk/objects/%.2s",root_path, hash_in_hex2);
     mkdir(dir_name, 0777);
 
-    char new_name[50] = "./.fuk/objects/";
-    int offset = 15;
+    char new_name[PATH_MAX];
+    int offset = sprintf(new_name, "%s/.fuk/objects/", root_path);
     offset += sprintf(new_name + offset, "%.2s/", hash_in_hex2);
     sprintf(new_name + offset,"%s", hash_in_hex2 + 2);
 
     FILE* f_dest = fopen(new_name, "wb");
-    compress_file("./.fuk/objects/tmp", f_dest, 2);
+    compress_file(path_tmp, f_dest, 2);
     fclose(f_dest);
-    remove("./.fuk/objects/tmp");
+    remove(path_tmp);
 
     FILE* parent_commit2 = fopen(branch, "w");
     fprintf(parent_commit, "%s", hash_in_hex2);

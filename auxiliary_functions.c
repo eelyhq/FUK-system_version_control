@@ -39,7 +39,7 @@ int make_header(char* header, long file_size, int i) // function that does heade
     return sprintf(header, "commit: %ld\n", file_size);
 }
 
-int check_repo_existing(char* cwd)
+char* check_repo_existing(char* cwd, char* root_path) // this function returns absolute root path if it exists and null otherwise
 {
     int size_of_path = cnt_slashes_in_path(cwd);
 
@@ -54,12 +54,17 @@ int check_repo_existing(char* cwd)
 
         if (access(path, F_OK) == 0)
         {
-            f = 1;
-            break;
+            if (cur_dir[0] == '\0') {
+                // we are already in the root
+                realpath(".", root_path);
+            } else {
+                realpath(cur_dir, root_path);
+            }
+            return root_path;
         }
         strcat(cur_dir, "../");
     }
-    return f;
+    return NULL;
 }
 
 long get_file_size(FILE* file)

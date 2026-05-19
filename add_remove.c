@@ -14,9 +14,9 @@
 #define  SIXTY_FOUR_KB 65536
 
 
-void add_fuk(char* file_name)
+void add_fuk(char* user_input_path)
 {
-    if (access(file_name, F_OK))
+    if (access(user_input_path, F_OK))
     {
         printf("There is no such file here");
         return;
@@ -27,44 +27,54 @@ void add_fuk(char* file_name)
     char cwd[PATH_MAX];
     getcwd(cwd, sizeof(cwd));
 
-    if (!check_repo_existing(cwd))
+    char root_path[PATH_MAX];
+    if (!check_repo_existing(cwd, root_path))
     {
         printf("There is no repo!");
         return;
     }
 
-    FILE* index = fopen("./.fuk/index", "r");
+    char path_index[PATH_MAX];
+    sprintf(path_index, "%s/.fuk/index", root_path);
+    FILE* index = fopen(path_index, "r");
 
     char file_in_index[NAME_MAX];
-    char tmp[41];
+    char previous_hash[41];
 
-    while (fscanf(index, "%s : %s", file_in_index, tmp) != -1)
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    get_hash(user_input_path, hash, 0);
+
+    char hash_in_hex[41];
+
+    for (int i = 0; i < 20; i++)
     {
-        if (!strcmp(file_name, file_in_index))
+        sprintf(hash_in_hex + (i * 2), "%02x", hash[i]);
+    }
+
+
+    while (fscanf(index, "%s : %s", file_in_index, previous_hash) != -1)
+    {
+        if (!strcmp(user_input_path, file_in_index))
         {
-            printf("File %s has already been added", file_name);
-            fclose(index);
-            f = 0;
-            break;
+            if (!strcmp(previous_hash, hash_in_hex))
+            {
+                printf("File %s has already been added", user_input_path);
+                fclose(index);
+                f = 0;
+                break;
+            }
         }
     }
 
     if (f)
     {
         fclose(index);
-        unsigned char hash[EVP_MAX_MD_SIZE];
-        get_hash(file_name, hash, 0);
 
-        char hash_in_hex[41];
-
-        for (int i = 0; i < 20; i++)
-        {
-            sprintf(hash_in_hex + (i * 2), "%02x", hash[i]);
-        }
 
         unsigned char dir_name[2]; // size 2 for first byte and null terminator
         sprintf(dir_name,"%02X", *hash); // make directory with name of first byte of hash
-        unsigned char path[PATH_MAX] = "./.fuk/objects/";
+        unsigned char path[PATH_MAX];
+        sprintf(path, "%s/.fuk/objects/", root_path);
         strcat(path, dir_name);
 
         mkdir(path, 0777);
@@ -79,54 +89,51 @@ void add_fuk(char* file_name)
         strcat(path, hex_file_name);
 
         FILE* tear = fopen(path, "wb");
-        compress_file(file_name, tear, 0);
+        compress_file(user_input_path, tear, 0);
         fclose(tear);
 
-        FILE* index = fopen("./.fuk/index", "a");
-        if (file_name[0] == '.' && file_name[1] == '/') // it means that this file in subdirectory
-        {
-            fprintf(index, "%s : %s\n", file_name + 2, hash_in_hex); // write file name (without ./) and hash
-        }
-        else
-        {
-            fprintf(index, "%s : %s\n", file_name, hash_in_hex); // write file name and hash
-        }
+        FILE* index = fopen(path_index, "a");
+
+        fprintf(index, "%s : %s\n", user_input_path, hash_in_hex); // write file name and hash
+
         fclose(index);
 
-        printf("File %s successfully addded", file_name);
+        printf("File %s successfully addded", user_input_path);
     }
 }
 
 
-void remove_fuk(char* file_name)
+void remove_fuk(char* user_input_path)
 {
-    if (access(file_name, F_OK))
-    {
-        printf("There is no such file here");
-        return;
-    }
 
     int f = 1;
 
     char cwd[PATH_MAX];
     getcwd(cwd, sizeof(cwd));
 
-    if (!check_repo_existing(cwd))
+    char root_path[PATH_MAX];
+    if (!check_repo_existing(cwd, root_path))
     {
         printf("There is no repo!");
         return;
     }
 
-    FILE* index = fopen("./.fuk/index", "r");
+    char path_index[PATH_MAX];
+    sprintf(path_index, "%s/.fuk/index", root_path);
+
+    FILE* index = fopen(path_index, "r");
 
     char file_in_index[NAME_MAX];
     char hash[41];
     int row_number_to_skip = 0;
     while (fscanf(index, "%s : %s", file_in_index, hash) != -1)
     {
-        if (!strcmp(file_name, file_in_index)) // if file really was added
+        if (!strcmp(user_input_path, file_in_index)) // if file really was added
         {
-            FILE* index_lock = fopen("./.fuk/index.lock", "a"); // we can't delete one row and we had to rewrite all rows without target
+            char path_index_lock[PATH_MAX];
+            sprintf(path_index_lock, "%s/.fuk/index.lock", root_path);
+
+            FILE* index_lock = fopen(path_index_lock, "a"); // we can't delete one row, and we had to rewrite all rows without target
             fseek(index, 0, SEEK_SET);
 
             while (fscanf(index, "%s : %s", file_in_index, hash) != -1)
@@ -138,12 +145,12 @@ void remove_fuk(char* file_name)
                 row_number_to_skip--;
             }
 
-            printf("File %s successfully removed", file_name);
+            printf("File %s successfully removed", user_input_path);
 
             f = 0;
             fclose(index);
             fclose(index_lock);
-            rename("./.fuk/index.lock", "./.fuk/index");
+            rename(path_index_lock, path_index);
             break;
         }
         row_number_to_skip++;

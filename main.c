@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h> // required for getcwd
 #include <limits.h> // required for PATH_MAX
 #include <unistd.h>
@@ -27,15 +28,22 @@ int main(const int argc, char** argv) {
     if (argc == 3) {
         if (!strcmp(argv[1], "add"))
         {
-            char file_name[NAME_MAX];
-            memcpy(file_name, argv[2], sizeof(char) * strlen(argv[2]));
-            add_fuk(file_name);
+            char absolute_path[PATH_MAX];
+
+            if (realpath(argv[2], absolute_path) == NULL)
+            {
+                printf("File doesn't exists or path is invalid\n");
+                return 1;
+            }
+
+            add_fuk(absolute_path);
         }
         else if (!strcmp(argv[1], "remove"))
         {
-            char file_name[NAME_MAX];
-            memcpy(file_name, argv[2], sizeof(char) * strlen(argv[2]));
-            remove_fuk(file_name);
+            char absolute_path[PATH_MAX];
+
+            realpath(argv[2], absolute_path);
+            remove_fuk(absolute_path);
         }
     }
     if (argc == 4) {
@@ -52,14 +60,6 @@ int main(const int argc, char** argv) {
 
         }
     }
-
-
-
-    FILE* dest = fopen("./test", "wb");
-
-    decompress_file("/home/eely/Documents/FUK_project/.fuk/objects/2d/f7d474063245cce3180aaa9097c6c31e076d88", dest);
-
-    fclose(dest);
 
 
     return 0;

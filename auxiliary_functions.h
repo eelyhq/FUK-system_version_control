@@ -4,7 +4,7 @@
 
 int cnt_slashes_in_path(char*);
 int make_header(char*, long, int);
-int check_repo_existing(char*);
+char* check_repo_existing(char*, char*);
 long get_file_size(FILE*);
 void get_hash(char*, unsigned char*, int);
 

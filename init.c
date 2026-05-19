@@ -18,9 +18,10 @@ void init_fuk()
     char cwd[PATH_MAX];
     getcwd(cwd, sizeof(cwd)); // get current directory, to go up and search .fuk in higher dirs
 
-    int f = check_repo_existing(cwd);
+    char root_path[PATH_MAX];
+    char* f = check_repo_existing(cwd, root_path);
 
-    if (f) // F_OK checks for existence
+    if (f != NULL) // F_OK checks for existence
     {
         printf("There is already exist repo");
     }
@@ -33,7 +34,7 @@ void init_fuk()
         FILE* main = fopen("./.fuk/refs/heads/main", "w");
         fprintf(main, "NULL"); // it means that parent commit doesn't exist
         FILE* file_head = fopen("./.fuk/HEAD", "w"); // create file with current branch name
-        fprintf(file_head, "branch: ./.fuk/refs/heads/main");
+        fprintf(file_head, "branch: %s/.fuk/refs/heads/main", cwd);
         fclose(file_head);
         creat("./.fuk/index", 0777); // create file with files, added in commit
         printf("Repo successfully created");
