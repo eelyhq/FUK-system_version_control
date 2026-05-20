@@ -24,7 +24,8 @@ add_executable(main
         add_remove.c
         z_compressor.c
         commit.c
-        auxiliary_functions.c)
+        auxiliary_functions.c
+        log.c)
 
 
 target_link_libraries(main PRIVATE OpenSSL::Crypto ZLIB::ZLIB)

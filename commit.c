@@ -11,6 +11,7 @@
 #include "auxiliary_functions.h"
 #include "commit.h"
 #include "structures.h"
+#include <time.h>
 #include "z_compressor.h"
 #define  SIXTY_FOUR_KB 65536
 
@@ -187,7 +188,6 @@ void commit_fuk(char* message)
 
     // the p_c variable contains hash of previous commit, and we have to compare current tree with
     // previous and if they are equals, we have to decline commit and message, that there is nothing to do
-
     if (strcmp(p_c, "NULL"))
     {
         char path_to_commit[PATH_MAX];
@@ -215,7 +215,10 @@ void commit_fuk(char* message)
 
     char* buffer = malloc(sizeof(char) * 1000);
 
-    sprintf(buffer, "tree %s\nparent %s\n\nmessage: %s", root.hash, p_c, message);
+    time_t now = time(NULL);         // get current time
+    struct tm *t = localtime(&now);  // convert to local time structure
+
+    sprintf(buffer, "tree %s\nparent %s\ndate and time: %d.%d.%d %d:%d\n\nmessage: %s", root.hash, p_c, t->tm_mday, t->tm_mon + 1, t->tm_year + 1900, t->tm_hour, t->tm_min, message);
 
     char path_tmp[PATH_MAX];
     sprintf(path_tmp, "%s/.fuk/objects/tmp", root_path);
