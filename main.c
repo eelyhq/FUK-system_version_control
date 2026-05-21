@@ -102,9 +102,14 @@ int main(const int argc, char** argv) {
             fuk_log(NULL, -1);
         }
     }
+    if (!strcmp(argv[1], "status"))
+    {
+        status_fuk();
+    }
 
     // FILE* test = fopen("./test", "wb");
-    // decompress_file("/home/eely/Documents/FUK_project/.fuk/objects/a4/4a2c0c4afd325c932947f808a16295b6bc93a6", test);
+    // decompress_file("/home/eely/Documents/FUK_project/.fuk/objects/4e/03527d822ab588c247480ebd90e569bac1b873", test);
+    // fclose(test);
 
     return 0;
 }

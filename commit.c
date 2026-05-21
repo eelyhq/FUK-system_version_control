@@ -83,26 +83,15 @@ void save_tree(file_tree* node, char* root_path) // returns hash
 
     FILE* f_dest = fopen(new_name, "wb");
     compress_file(path_tmp, f_dest, 1);
+    fclose(f_dest);
 
     return;
 }
 
-void commit_fuk(char* message)
+
+int build_tree(char* root_path, file_tree* root)
 {
-    char cwd[PATH_MAX];
-    getcwd(cwd, sizeof(cwd)); // get current directory, to go up and search .fuk in higher dirs
-
-    char root_path[PATH_MAX];
-    char* re = check_repo_existing(cwd, root_path);
-
-    if (re == NULL) // F_OK checks for existence
-    {
-        printf("There is no repo!");
-        return;
-    }
-
-    file_tree root;
-    init_file_tree(&root);
+    init_file_tree(root);
 
     char file_name[NAME_MAX];
     char hash_in_hex[41];
@@ -119,7 +108,7 @@ void commit_fuk(char* message)
         char* relative_path = file_name + root_path_len + 1;
         f = 0;
 
-        file_tree* curr_dir = &root ;
+        file_tree* curr_dir = root ;
 
         int slash_cnt = cnt_slashes_in_path(relative_path);
 
@@ -164,6 +153,29 @@ void commit_fuk(char* message)
         curr_dir->children[curr_dir->child_count] = file;
         curr_dir->child_count++;
     }
+
+    return f;
+}
+
+
+
+void commit_fuk(char* message)
+{
+    char cwd[PATH_MAX];
+    getcwd(cwd, sizeof(cwd)); // get current directory, to go up and search .fuk in higher dirs
+
+    char root_path[PATH_MAX];
+    char* re = check_repo_existing(cwd, root_path);
+
+    if (re == NULL) // F_OK checks for existence
+    {
+        printf("There is no repo!");
+        return;
+    }
+
+    file_tree root;
+
+    int f  = build_tree(root_path, &root);
 
     if (f)
     {

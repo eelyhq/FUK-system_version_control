@@ -15,6 +15,7 @@
 #include "z_compressor.h"
 #include "log.h"
 #include "auxiliary_functions.h"
+#include "structures.h"
 
 #define BUFFER_SIZE 1024
 #define TMP_SIZE 256
@@ -147,7 +148,7 @@ void compare_trees(char* current_tree_hash, char* comprasion_tree_hash, char* ro
             fgets(tmp, sizeof(char) * TMP_SIZE, comprasion_tree);
             if (f)
             {
-                printf("New file: %s\n", current.name);
+                printf("New file: %s%s/%s\n", root_path, current_nesting, current.name);
             }
         }
         else // this is another tree
@@ -163,7 +164,7 @@ void compare_trees(char* current_tree_hash, char* comprasion_tree_hash, char* ro
                     char new_nesting[PATH_MAX];
                     sprintf(new_nesting, "%s/%s", current_nesting, current.name);
                     compare_trees(current.hash, comprasion.hash, root_path, new_nesting, i);
-                    printf("Changed directory: %s%s/%s\n", root_path, current_nesting, current.name);
+                    // printf("Changed directory: %s%s/%s\n", root_path, current_nesting, current.name);
                     f = 0;
                 }
             }
@@ -193,11 +194,11 @@ void compare_trees(char* current_tree_hash, char* comprasion_tree_hash, char* ro
         {
             continue;
         }
-        curr_row++;
+
         if (!strcmp(comprasion.type, "tear")) // try to find tear in comparion tree
         {
             int f = 1;
-            while (fscanf(comprasion_tree, "%s %s : %s", current.type, current.name, current.hash) != -1)
+            while (fscanf(current_tree, "%s %s : %s", current.type, current.name, current.hash) != -1)
             {
                 if (!strcmp(current.name, comprasion.name)) // we found file with same name
                 {
@@ -219,20 +220,20 @@ void compare_trees(char* current_tree_hash, char* comprasion_tree_hash, char* ro
             fgets(tmp, sizeof(char) * TMP_SIZE, current_tree);
             if (f)
             {
-                printf("New file: %s\n", comprasion.name);
+                printf("New file: %s%s/%s\n", root_path, current_nesting, current.name);
             }
         }
         else // this is another tree
         {
             int f = 1;
-            while (fscanf(comprasion_tree, "%s %s : %s", current.type, current.name, current.hash) != -1)
+            while (fscanf(current_tree, "%s %s : %s", current.type, current.name, current.hash) != -1)
             {
                 if (!strcmp(current.name, comprasion.name)) // we found file with same name
                 {
                     char new_nesting[PATH_MAX];
                     sprintf(new_nesting, "%s/%s", current_nesting, current.name);
                     compare_trees(current.hash, comprasion.hash, root_path, new_nesting, i);
-                    printf("Changed directory: %s%s/%s\n", root_path, current_nesting, current.name);
+                    // printf("Changed directory: %s%s/%s\n", root_path, current_nesting, current.name);
                     f = 0;
                 }
             }
@@ -247,9 +248,80 @@ void compare_trees(char* current_tree_hash, char* comprasion_tree_hash, char* ro
             }
         }
     }
-
-
 }
+
+void status_fuk() // function for compairing index and tree from last commit
+{
+    char cwd[PATH_MAX];
+    getcwd(cwd, sizeof(cwd));
+
+    char root_path[PATH_MAX];
+    char* ce = check_repo_existing(cwd, root_path);
+
+    if (ce == NULL) // F_OK checks for existence
+    {
+        printf("There is no repo!");
+        return;
+    }
+
+    // try to find commit with this hash
+    char head_path[PATH_MAX];
+    sprintf(head_path, "%s/.fuk/HEAD", root_path);
+
+    FILE* head = fopen(head_path, "r");
+
+    char current_branch_path[PATH_MAX];
+    fscanf(head, "branch: %s", current_branch_path);
+    fclose(head);
+
+    FILE* current_branch = fopen(current_branch_path, "r");
+    char current_commit_hash[HASH_LEN];
+    fscanf(current_branch, "%s", current_commit_hash);
+
+    if (!strcmp(current_commit_hash, "NULL"))
+    {
+        printf("There have been no commits yet");
+        return;
+    }
+
+    char objects_path[PATH_MAX];
+    sprintf(objects_path, "%s/.fuk/objects", root_path);
+
+    char current_commit_path[PATH_MAX];
+    sprintf(current_commit_path, "%s/.fuk/objects/%.2s/%.38s", root_path, current_commit_hash, current_commit_hash + 2);
+    char current_commit_path_tmp[PATH_MAX];
+    strcpy(current_commit_path_tmp, objects_path);
+    strcat(current_commit_path_tmp, "/current_commit");
+
+    // decompress current commit
+    FILE* current_decompressed_commit = fopen(current_commit_path_tmp, "wb");
+    decompress_file(current_commit_path, current_decompressed_commit);
+    fclose(current_decompressed_commit);
+
+    // this we should  compare with index
+    file_tree root;
+    build_tree(root_path, &root); // build tree from index
+    save_tree(&root, root_path);
+
+    current_decompressed_commit = fopen(current_commit_path_tmp, "r");
+
+    char current_tree_hash[HASH_LEN];
+
+    char tmp[TMP_SIZE];
+
+    // get tree hashes
+    fgets(tmp, sizeof(char) * TMP_SIZE, current_decompressed_commit); // skip header
+    fgets(tmp, sizeof(char) * TMP_SIZE, current_decompressed_commit);
+    sprintf(current_tree_hash, "%s", tmp + 5); // +5, because tree: has len 5
+
+    fclose(current_decompressed_commit);
+
+    char current_nesting[PATH_MAX] = "";
+    compare_trees(root.hash, current_tree_hash, root_path, current_nesting, 0);
+
+    return;
+}
+
 
 void fuk_diff(char* hash) // hash of comparing commit
 {
@@ -331,8 +403,6 @@ void fuk_diff(char* hash) // hash of comparing commit
     char current_nesting[PATH_MAX] = "";
     compare_trees(current_tree_hash, comprasion_tree_hash, root_path, current_nesting, 0);
 }
-
-
 
 
 void fuk_log(char* hash, int n)
@@ -432,3 +502,6 @@ void fuk_log(char* hash, int n)
 
     return;
 }
+
+
+
