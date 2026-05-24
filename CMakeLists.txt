@@ -19,13 +19,18 @@ endif()
 # "MyExecutable" is the name of the program.
 # "main.cpp" is your source file.
 add_executable(main
-        main.c
-        init.c
-        add_remove.c
-        z_compressor.c
-        commit.c
-        auxiliary_functions.c
-        log.c)
+        src/main.c
+        src/commands/init.c
+        src/commands/add_remove.c
+        src/utils/z_compressor.c
+        src/commands/commit.c
+        src/utils/auxiliary_functions.c
+        src/commands/log.c
+        src/commands/branch.c
+        src/commands/status.c
+        src/commands/diff.c
+        src/commands/checkout.c
+        include/diff.h)
 
 
 target_link_libraries(main PRIVATE OpenSSL::Crypto ZLIB::ZLIB)
